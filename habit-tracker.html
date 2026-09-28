@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Habit Tracker</title>
+<style>
+:root{
+  --bg:#eef1ee; --card:#ffffff; --ink:#1c2b2a; --muted:#6b7b79; --line:#dde3e0;
+  --accent:#2f6f5e; --accent-soft:#d8ebe4; --sun:#e9a93b; --danger:#b8443a;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--bg:#111a19;--card:#1a2625;--ink:#e6efed;--muted:#8fa19e;--line:#2a3937;--accent:#58b59c;--accent-soft:#1f3a34;--sun:#f0b955;--danger:#e06a5e}
+}
+:root[data-theme="dark"]{--bg:#111a19;--card:#1a2625;--ink:#e6efed;--muted:#8fa19e;--line:#2a3937;--accent:#58b59c;--accent-soft:#1f3a34;--sun:#f0b955;--danger:#e06a5e}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;line-height:1.45}
+main{max-width:640px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.7rem;margin:0;letter-spacing:-.02em}
+h2{font-size:1.05rem;margin:0 0 12px}
+.sub{color:var(--muted);font-size:.9rem;margin:2px 0 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-top:14px}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+/* summary */
+.top{display:flex;align-items:center;gap:18px}
+.ring{position:relative;width:104px;height:104px;flex:none}
+.ring svg{transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:10}
+.ring .bg{stroke:var(--accent-soft)}
+.ring .fg{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .4s}
+.ring b{position:absolute;inset:0;display:grid;place-items:center;font-size:1.6rem}
+.stats{display:flex;gap:10px;flex-wrap:wrap}
+.stat{background:var(--accent-soft);border-radius:12px;padding:8px 12px;font-size:.85rem}
+.stat b{display:block;font-size:1.2rem}
+
+/* week strip */
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:6px}
+.day{border:1px solid var(--line);background:none;border-radius:12px;padding:6px 0;text-align:center;font-size:.75rem;color:var(--muted)}
+.day b{display:block;font-size:1rem;color:var(--ink)}
+.day.sel{background:var(--accent);border-color:var(--accent);color:#fff}
+.day.sel b{color:#fff}
+.bars{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;align-items:end;height:90px}
+.bar{background:var(--accent-soft);border-radius:8px 8px 4px 4px;position:relative;height:100%;overflow:hidden}
+.bar i{position:absolute;left:0;right:0;bottom:0;background:var(--accent);transition:height .4s}
+.bar.today i{background:var(--sun)}
+.bar.future{opacity:.4}
+.labels{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;text-align:center;font-size:.72rem;color:var(--muted);margin-top:4px}
+
+/* habits */
+.habit{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.habit:first-of-type{border-top:0}
+.habit input[type=checkbox]{width:26px;height:26px;accent-color:var(--accent);flex:none;cursor:pointer}
+.habit .name{flex:1;min-width:0;overflow-wrap:anywhere}
+.habit.done .name{text-decoration:line-through;color:var(--muted)}
+.streak{font-size:.8rem;color:var(--muted);white-space:nowrap}
+.streak.hot{color:var(--sun);font-weight:700}
+.icon{border:1px solid var(--line);background:none;border-radius:10px;min-width:38px;height:38px;font-size:.85rem}
+.icon.del:hover{color:var(--danger);border-color:var(--danger)}
+.edit{flex:1;min-width:0}
+input[type=text],textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+textarea{min-height:90px;resize:vertical}
+.add{display:flex;gap:8px;margin-top:12px}
+.primary{background:var(--accent);color:#fff;border:0;border-radius:12px;padding:0 18px;font-weight:600;min-height:44px}
+.empty{color:var(--muted);margin:4px 0}
+
+/* mood */
+.moods{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.mood{border:1px solid var(--line);background:none;border-radius:14px;padding:8px 0;font-size:1.6rem;line-height:1}
+.mood small{display:block;font-size:.68rem;color:var(--muted);margin-top:4px}
+.mood.sel{background:var(--accent-soft);border-color:var(--accent)}
+.foot{text-align:center;color:var(--muted);font-size:.8rem;margin-top:18px}
+.foot button{background:none;border:0;color:var(--muted);text-decoration:underline}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Habit Tracker</h1>
+    <p class="sub" id="dateLabel"></p>
+  </header>
+
+  <section class="card">
+    <div class="top">
+      <div class="ring" aria-label="Completion for selected day">
+        <svg width="104" height="104" viewBox="0 0 104 104"><circle class="bg" cx="52" cy="52" r="45"/><circle class="fg" id="ringFg" cx="52" cy="52" r="45" stroke-dasharray="283" stroke-dashoffset="283"/></svg>
+        <b id="pct">0%</b>
+      </div>
+      <div class="stats">
+        <div class="stat"><b id="doneCount">0/0</b>done today</div>
+        <div class="stat"><b id="perfectStreak">0</b>perfect-day streak</div>
+      </div>
+    </div>
+    <div class="week" id="weekStrip" style="margin-top:16px"></div>
+  </section>
+
+  <section class="card">
+    <h2>Habits</h2>
+    <div id="list"></div>
+    <div class="add">
+      <input type="text" id="newHabit" placeholder="New habit, e.g. Drink water" maxlength="60" aria-label="New habit name">
+      <button class="primary" id="addBtn">Add</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Weekly progress <span class="sub" id="weekAvg"></span></h2>
+    <div class="bars" id="bars"></div>
+    <div class="labels" id="barLabels"></div>
+  </section>
+
+  <section class="card">
+    <h2>How was your day?</h2>
+    <div class="moods" id="moods"></div>
+  </section>
+
+  <section class="card">
+    <h2>Notes</h2>
+    <textarea id="note" placeholder="Anything worth remembering about this day?" aria-label="Notes for the selected day"></textarea>
+  </section>
+
+  <p class="foot"><button id="reset">Reset all data</button></p>
+</main>
+
+<script>
+// ---------- storage ----------
+const KEY = "habitTracker.v1";
+let state = load();
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw){ const s = JSON.parse(raw); if(s && Array.isArray(s.habits) && s.log) return s; }
+  }catch(e){}
+  return { habits:[], log:{} };
+}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+
+// ---------- date helpers ----------
+const pad = n => String(n).padStart(2,"0");
+const keyOf = d => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+const today = new Date(); today.setHours(0,0,0,0);
+let selected = new Date(today);
+const DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+function weekStart(d){ const x = new Date(d); const off = (x.getDay()+6)%7; return addDays(x,-off); } // Monday
+
+// ---------- data helpers ----------
+function entry(key){ return state.log[key] || (state.log[key] = { done:[], mood:0, note:"" }); }
+function isDone(key,id){ const e = state.log[key]; return !!e && e.done.includes(id); }
+function pctFor(d){
+  if(!state.habits.length) return 0;
+  const e = state.log[keyOf(d)]; if(!e) return 0;
+  const n = state.habits.filter(h => e.done.includes(h.id)).length;
+  return Math.round(n / state.habits.length * 100);
+}
+function habitStreak(id){
+  let d = new Date(today);
+  if(!isDone(keyOf(d),id)) d = addDays(d,-1); // today not done yet doesn't break it
+  let n = 0;
+  while(isDone(keyOf(d),id)){ n++; d = addDays(d,-1); }
+  return n;
+}
+function perfectStreak(){
+  if(!state.habits.length) return 0;
+  const perfect = d => pctFor(d) === 100;
+  let d = new Date(today);
+  if(!perfect(d)) d = addDays(d,-1);
+  let n = 0;
+  while(perfect(d)){ n++; d = addDays(d,-1); }
+  return n;
+}
+
+// ---------- render ----------
+const $ = id => document.getElementById(id);
+const MOODS = [["😞","Rough"],["😕","Meh"],["😐","Okay"],["🙂","Good"],["😄","Great"]];
+let editingId = null;
+
+function render(){
+  const key = keyOf(selected);
+  const isToday = key === keyOf(today);
+  $("dateLabel").textContent = (isToday ? "Today · " : "") + selected.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"});
+
+  // ring + stats
+  const p = pctFor(selected);
+  $("pct").textContent = p + "%";
+  $("ringFg").style.strokeDashoffset = 283 - 283*p/100;
+  const doneN = state.habits.filter(h => isDone(key,h.id)).length;
+  $("doneCount").textContent = doneN + "/" + state.habits.length;
+  $("perfectStreak").textContent = perfectStreak();
+
+  // week strip + bars
+  const ws = weekStart(selected);
+  let strip = "", bars = "", labels = "", sum = 0, counted = 0;
+  for(let i=0;i<7;i++){
+    const d = addDays(ws,i), k = keyOf(d);
+    const future = d > today, pc = pctFor(d);
+    if(!future){ sum += pc; counted++; }
+    strip += `<button class="day ${k===key?"sel":""}" data-date="${k}" aria-label="${d.toDateString()}">${DAY_NAMES[d.getDay()]}<b>${d.getDate()}</b></button>`;
+    bars += `<div class="bar ${k===keyOf(today)?"today":""} ${future?"future":""}" title="${pc}%"><i style="height:${pc}%"></i></div>`;
+    labels += `<div>${pc}%</div>`;
+  }
+  $("weekStrip").innerHTML = strip;
+  $("bars").innerHTML = bars;
+  $("barLabels").innerHTML = labels;
+  $("weekAvg").textContent = counted ? "· avg " + Math.round(sum/counted) + "%" : "";
+
+  // habits
+  if(!state.habits.length){
+    $("list").innerHTML = '<p class="empty">No habits yet. Add your first one below.</p>';
+  } else {
+    $("list").innerHTML = state.habits.map(h => {
+      const done = isDone(key,h.id), s = habitStreak(h.id);
+      const nameCell = editingId === h.id
+        ? `<input type="text" class="edit" id="editInput" value="${esc(h.name)}" maxlength="60" aria-label="Edit habit name">`
+        : `<span class="name">${esc(h.name)}</span>`;
+      const btns = editingId === h.id
+        ? `<button class="icon" data-act="save" data-id="${h.id}">Save</button>`
+        : `<button class="icon" data-act="edit" data-id="${h.id}" aria-label="Edit ${esc(h.name)}">Edit</button><button class="icon del" data-act="del" data-id="${h.id}" aria-label="Delete ${esc(h.name)}">✕</button>`;
+      return `<div class="habit ${done?"done":""}">
+        <input type="checkbox" data-act="toggle" data-id="${h.id}" ${done?"checked":""} aria-label="Mark ${esc(h.name)} done">
+        ${nameCell}
+        <span class="streak ${s>=3?"hot":""}">${s>0?"🔥 "+s+"d":"–"}</span>
+        ${btns}</div>`;
+    }).join("");
+    if(editingId){ const el = $("editInput"); if(el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }
+  }
+
+  // mood + note
+  const e = state.log[key] || {mood:0,note:""};
+  $("moods").innerHTML = MOODS.map((m,i) => `<button class="mood ${e.mood===i+1?"sel":""}" data-mood="${i+1}" aria-label="${m[1]}" aria-pressed="${e.mood===i+1}">${m[0]}<small>${m[1]}</small></button>`).join("");
+  if(document.activeElement !== $("note")) $("note").value = e.note || "";
+}
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+// ---------- actions ----------
+function addHabit(){
+  const name = $("newHabit").value.trim();
+  if(!name) return $("newHabit").focus();
+  state.habits.push({ id: "h" + Date.now().toString(36) + Math.random().toString(36).slice(2,5), name });
+  $("newHabit").value = "";
+  save(); render();
+}
+function saveEdit(id){
+  const v = $("editInput").value.trim();
+  const h = state.habits.find(h => h.id === id);
+  if(h && v) h.name = v;
+  editingId = null; save(); render();
+}
+$("addBtn").onclick = addHabit;
+$("newHabit").addEventListener("keydown", e => { if(e.key==="Enter") addHabit(); });
+
+$("list").addEventListener("click", e => {
+  const t = e.target.closest("[data-act]"); if(!t) return;
+  const id = t.dataset.id, act = t.dataset.act;
+  if(act==="edit"){ editingId = id; render(); }
+  else if(act==="save"){ saveEdit(id); }
+  else if(act==="del"){
+    const h = state.habits.find(h => h.id === id);
+    if(h && t.dataset.confirm !== "1"){ t.dataset.confirm = "1"; t.textContent = "Sure?"; setTimeout(() => { if(t.isConnected){ t.dataset.confirm = ""; t.textContent = "✕"; } }, 2500); return; }
+    state.habits = state.habits.filter(h => h.id !== id);
+    Object.values(state.log).forEach(en => en.done = en.done.filter(x => x !== id));
+    save(); render();
+  }
+});
+$("list").addEventListener("change", e => {
+  if(e.target.dataset.act !== "toggle") return;
+  const en = entry(keyOf(selected)), id = e.target.dataset.id;
+  en.done = e.target.checked ? [...new Set([...en.done, id])] : en.done.filter(x => x !== id);
+  save(); render();
+});
+$("list").addEventListener("keydown", e => {
+  if(e.target.id==="editInput"){ if(e.key==="Enter") saveEdit(editingId); if(e.key==="Escape"){ editingId=null; render(); } }
+});
+$("weekStrip").addEventListener("click", e => {
+  const b = e.target.closest("[data-date]"); if(!b) return;
+  const [y,m,d] = b.dataset.date.split("-").map(Number);
+  selected = new Date(y,m-1,d); render();
+});
+$("moods").addEventListener("click", e => {
+  const b = e.target.closest("[data-mood]"); if(!b) return;
+  const en = entry(keyOf(selected)), v = Number(b.dataset.mood);
+  en.mood = en.mood === v ? 0 : v; // tap again to clear
+  save(); render();
+});
+$("note").addEventListener("input", e => { entry(keyOf(selected)).note = e.target.value; save(); });
+$("reset").onclick = function(){
+  if(this.dataset.c !== "1"){ this.dataset.c = "1"; this.textContent = "Tap again to erase everything"; setTimeout(() => { this.dataset.c = ""; this.textContent = "Reset all data"; }, 3000); return; }
+  state = { habits:[], log:{} }; save(); this.dataset.c = ""; this.textContent = "Reset all data"; render();
+};
+render();
+</script>
+</body>
+</html>
